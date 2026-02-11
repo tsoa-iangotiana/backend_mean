@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const User = require('../models/User');
+const User = require('../models/user.model.js');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const authMiddleware = require('../middlewares/auth.middleware.js');
+const authMiddleware = require('../middlewares/auth.middleware');
 
 // Validation des entrées
 const validateRegistration = (req, res, next) => {
