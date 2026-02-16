@@ -1,33 +1,35 @@
 const express = require('express');
 const router = express.Router();
 const {
-  getUsers,
+inscription,
+  login,
+  logout,
+  getMonProfil,
+  getAllUsers,
   getUserById,
-  createUser,
   updateUser,
   deleteUser,
   toggleUserActive,
-  changePassword,
-  getProfile,
-  updateProfile
-} = require('../controllers/commun/user.controller');
+  changePassword
+} = require('../../controllers/commun/auth.controller');
 
 const authMiddleware = require('../../middlewares/auth.middleware');
 
+router.post('/login', login);
+router.post('/inscription', authMiddleware(['admin', 'acheteur']), inscription);
 // Routes protégées
 router.use(authMiddleware);
 
 // Profil personnel
-router.get('/profile', getProfile);
-router.put('/profile', updateProfile);
+router.get('/profile', getMonProfil);
+router.put('/profile', updateUser);
 router.put('/:id/change-password', changePassword);
-
+router.post('/logout', authMiddleware, logout);
 // Routes admin uniquement
-router.get('/', authMiddleware(['admin']), getUsers);
-router.post('/', authMiddleware(['admin']), createUser);
-router.get('/:id', authMiddleware(['admin']), getUserById);
-router.put('/:id', authMiddleware(['admin']), updateUser);
-router.delete('/:id', authMiddleware(['admin']), deleteUser);
-router.patch('/:id/toggle-active', authMiddleware(['admin']), toggleUserActive);
+router.get('/all-users', authMiddleware(['admin']), getAllUsers);
+router.get('/user/:id', authMiddleware(['admin']), getUserById);
+router.put('/user/:id', authMiddleware(['admin']), updateUser);
+router.delete('/user/:id', authMiddleware(['admin']), deleteUser);
+router.patch('/user/:id/toggle-active', authMiddleware(['admin']), toggleUserActive);
 
 module.exports = router;

@@ -54,7 +54,7 @@ app.use((req, res, next) => {
 });
 
 // Routes
-app.use('/auth', require('./routes/userRoutes'));
+app.use('/auth', require('./routes/commun/user.routes'));
 app.use('/articles', require('./routes/articleRoutes')); 
 
 // Route de test

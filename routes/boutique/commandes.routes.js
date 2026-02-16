@@ -5,7 +5,7 @@ const {
   getChiffreAffaires,
   getStatistiques
 } = require('../../controllers/boutique/commandes.controller');
-const {  authMiddl} = require('../../middlewares/auth.middleware');
+const {authMiddleware} = require('../../middlewares/auth.middleware');
 const { estBoutique, verifierPaiement } = require('../../middlewares/boutique.middleware');
 
 router.use(authMiddleware(['boutique']), verifierPaiement);
