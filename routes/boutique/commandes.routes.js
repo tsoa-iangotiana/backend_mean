@@ -5,10 +5,10 @@ const {
   getChiffreAffaires,
   getStatistiques
 } = require('../../controllers/boutique/commandes.controller');
-const { protect } = require('../../middlewares/auth.middleware');
+const {  authMiddl} = require('../../middlewares/auth.middleware');
 const { estBoutique, verifierPaiement } = require('../../middlewares/boutique.middleware');
 
-router.use(protect, estBoutique, verifierPaiement);
+router.use(authMiddleware(['boutique']), verifierPaiement);
 
 router.get('/', getCommandes);
 router.get('/chiffre-affaires', getChiffreAffaires);

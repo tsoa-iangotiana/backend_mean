@@ -9,10 +9,10 @@ const {
   getSituationStock,
   updateStock
 } = require('../../controllers/boutique/produits.controller');
-const { protect } = require('../../middlewares/auth.middleware');
+const { authMiddleware } = require('../../middlewares/auth.middleware');
 const { estBoutique, verifierPaiement } = require('../../middlewares/boutique.middleware');
 
-router.use(protect, estBoutique, verifierPaiement);
+router.use(authMiddleware(['boutique']), verifierPaiement);
 
 router.route('/')
   .post(createProduit)

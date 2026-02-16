@@ -6,10 +6,10 @@ const {
   getTicket,
   addMessage
 } = require('../../controllers/boutique/tickets.controller');
-const { protect } = require('../../middlewares/auth.middleware');
+const {authMiddleware} = require('../../middlewares/auth.middleware');
 const { estBoutique } = require('../../middlewares/boutique.middleware');
 
-router.use(protect, estBoutique);
+router.use(authMiddleware(['boutique']));
 
 router.route('/')
   .post(createTicket)

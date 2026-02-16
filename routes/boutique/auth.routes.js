@@ -1,15 +1,15 @@
 const express = require('express');
 const router = express.Router();
+const { login } = require('../../controllers/commun/auth.controller');
 const {
-  loginBoutique,
   getProfilBoutique,
   updateProfilBoutique
 } = require('../../controllers/boutique/auth.controller');
-const { protect } = require('../../middlewares/auth.middleware');
+const { authMiddleware } = require('../../middlewares/auth.middleware');
 const { estBoutique } = require('../../middlewares/boutique.middleware');
 
-router.post('/login', loginBoutique);
-router.get('/profil', protect, estBoutique, getProfilBoutique);
-router.put('/profil', protect, estBoutique, updateProfilBoutique);
+router.post('/login', login);
+router.get('/profil', authMiddleware(['boutique']), getProfilBoutique);
+router.put('/profil', authMiddleware(['boutique']), updateProfilBoutique);
 
 module.exports = router;

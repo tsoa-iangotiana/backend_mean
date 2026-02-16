@@ -29,5 +29,5 @@ const avisSchema = new mongoose.Schema({
 }, {
   timestamps: true
 });
-
+avisSchema.plugin(mongoosePaginate);
 module.exports = mongoose.model('Avis', avisSchema);

@@ -5,10 +5,10 @@ const {
   getSituationLoyer,
   getHistoriquePaiements
 } = require('../../controllers/boutique/paiement.controller');
-const { protect } = require('../../middlewares/auth.middleware');
+const { authMiddleware } = require('../../middlewares/auth.middleware');
 const { estBoutique } = require('../../middlewares/boutique.middleware');
 
-router.use(protect, estBoutique);
+router.use(authMiddleware(['boutique']), estBoutique);
 
 router.post('/payer', payerLoyer);
 router.get('/situation', getSituationLoyer);
