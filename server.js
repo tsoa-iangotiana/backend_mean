@@ -13,7 +13,7 @@ const PORT = process.env.PORT || 5000;
 
 // Middleware 
 app.use(cors({
-  origin: 'http://localhost:4200',
+  origin: ['http://localhost:4200', 'https://frontend-mean-57x3.onrender.com/'], // MODIFIÉ: Ajout de localhost:3000 pour le développement frontend
   allowedHeaders: ['Content-Type', 'Authorization'] // MODIFIÉ: Désactivé car on n'utilise plus les cookies
 })); 
 app.use(express.json()); 
