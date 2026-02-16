@@ -29,7 +29,7 @@ catch (error) {
  *       401:
  *         description: Non authentifié
  */
-router.get('/', authMiddleware(), async (req, res) => { 
+router.get('/', authMiddleware(['acheteur','boutique']), async (req, res) => { 
 try { 
 const articles = await Article.find(); 
     res.json(articles); 

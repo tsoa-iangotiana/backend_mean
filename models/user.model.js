@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
-const UserSchema = new mongoose.Schema({
+const userSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true },
   email: { type: String, required: true, unique: true },
   role: { type: String, enum: ['acheteur', 'boutique','admin'], default: 'acheteur' },
@@ -9,10 +9,10 @@ const UserSchema = new mongoose.Schema({
   password: { type: String, required: true }
 }, { timestamps: true });
 
-// Méthode pour comparer les mots de passe
-UserSchema.methods.comparePassword = async function(candidatePassword) {
+
+userSchema.methods.comparePassword = async function(candidatePassword) {
   return bcrypt.compare(candidatePassword, this.password);
 };
 
 
-module.exports = mongoose.model('User', UserSchema);
+module.exports = mongoose.model('User', userSchema);
