@@ -15,10 +15,43 @@ inscription,
 
 const authMiddleware = require('../../middlewares/auth.middleware');
 
+/**
+@swagger
+ * /auth/login:
+ *   post:
+ *     summary: Connexion d’un utilisateur
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 example: user@example.com
+ *               password:
+ *                 type: string
+ *                 example: password123
+ *     responses:
+ *       200:
+ *         description: Connexion réussie et retourne le token JWT
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 token:
+ *                   type: string
+ *                   example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *       401:
+ *         description: Email ou mot de passe incorrect
+ */
 router.post('/login', login);
-router.post('/inscription', authMiddleware(['admin', 'acheteur']), inscription);
+router.post('/inscription', inscription);
 // Routes protégées
-router.use(authMiddleware);
+// router.use(authMiddleware);
 
 // Profil personnel
 router.get('/profile', getMonProfil);
