@@ -10,21 +10,21 @@ const swaggerUi = require('swagger-ui-express');
 
 const app = express(); 
 const PORT = process.env.PORT || 5000; 
-
-// Middleware CORS corrigé
-app.use(cors({
+// Configuration CORS
+const corsOptions = {
   origin: [
-    'http://localhost:3000',    // Votre frontend Angular
-    'http://localhost:4200',    // Au cas où
-    'https://frontend-mean-57x3.onrender.com'  // Votre frontend déployé
+    'http://localhost:3000',
+    'http://localhost:4200',
+    'https://frontend-mean-57x3.onrender.com'
   ],
   allowedHeaders: ['Content-Type', 'Authorization'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  credentials: true
-}));
+  credentials: true,
+  optionsSuccessStatus: 200
+};
 
-// IMPORTANT: Ajouter ce middleware pour les requêtes OPTIONS (preflight)
-app.options('*', cors());
+app.use(cors(corsOptions));
+
 
 app.use(express.json()); 
 // server.js - Configuration Swagger simple
