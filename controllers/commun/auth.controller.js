@@ -101,7 +101,7 @@ const login = async (req, res) => {
     if (!user) {
       return res.status(401).json({ 
         success: false,
-        message: 'Identifiants incorrects' 
+        message: 'Identifiants introuvables' 
       });
     }
     
@@ -110,7 +110,7 @@ const login = async (req, res) => {
     if (!isPasswordValid) {
       return res.status(401).json({ 
         success: false,
-        message: 'Identifiants incorrects' 
+        message: 'Mot de passe incorrect' 
       });
     }
     
@@ -150,7 +150,7 @@ const login = async (req, res) => {
     console.error('❌ Erreur login:', error);
     res.status(500).json({ 
       success: false,
-      message: 'Erreur serveur lors de la connexion' 
+      message: 'Erreur serveur lors de la connexion', error  
     });
   }
 };
