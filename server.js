@@ -81,7 +81,9 @@ app.use((req, res, next) => {
 // Routes
 app.use('/auth', require('./routes/commun/user.routes'));
 app.use('/articles', require('./routes/articleRoutes')); 
-
+app.use('/box', require('./routes/admin/box.route'));
+app.use('/categorie', require('./routes/admin/categorie.route'));
+app.use('/boutique', require('./routes/boutique/boutique.route'));
 // Route de test
 app.get('/', (req, res) => {
   res.json({ 
