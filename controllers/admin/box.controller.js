@@ -1,11 +1,9 @@
-const Box = require('../models/box.model');
-const Boutique = require('../models/boutique.model');
-const BoxHistorique = require('../models/box_historique.model');
+const Box = require('../../models/box.model');
+const Boutique = require('../../models/boutique.model');
+const BoxHistorique = require('../../models/box_historique.model');
 const mongoose = require('mongoose');
 
-// @desc    Créer un nouveau box
-// @route   POST /api/box
-// @access  Private (Admin seulement)
+
 const createBox = async (req, res) => {
   try {
     const { numero, surface, prix_loyer } = req.body;
