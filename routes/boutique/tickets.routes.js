@@ -6,7 +6,7 @@ const {
   getTicket,
   addMessage
 } = require('../../controllers/boutique/tickets.controller');
-const {authMiddleware} = require('../../middlewares/auth.middleware');
+const authMiddleware = require('../../middlewares/auth.middleware');
 const { estBoutique } = require('../../middlewares/boutique.middleware');
 
 router.use(authMiddleware(['boutique']));

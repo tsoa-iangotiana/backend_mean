@@ -49,18 +49,18 @@ const createBoutique = async (req, res) => {
     }
 
     // VÉRIFICATION CRITIQUE: Si le responsable a déjà une boutique
-    const boutiqueExistante = await Boutique.findOne({ responsable });
-    if (boutiqueExistante) {
-      return res.status(400).json({
-        success: false,
-        message: 'Ce responsable a déjà une boutique. Un responsable ne peut avoir qu\'une seule boutique.',
-        boutiqueExistante: {
-          id: boutiqueExistante._id,
-          nom: boutiqueExistante.nom,
-          active: boutiqueExistante.active
-        }
-      });
-    }
+    // const boutiqueExistante = await Boutique.findOne({ responsable });
+    // if (boutiqueExistante) {
+    //   return res.status(400).json({
+    //     success: false,
+    //     message: 'Ce responsable a déjà une boutique. Un responsable ne peut avoir qu\'une seule boutique.',
+    //     boutiqueExistante: {
+    //       id: boutiqueExistante._id,
+    //       nom: boutiqueExistante.nom,
+    //       active: boutiqueExistante.active
+    //     }
+    //   });
+    // }
 
     // Vérifier si le box existe et est libre (si un box est spécifié)
     if (box) {
@@ -257,7 +257,7 @@ const getBoutiqueByResponsable = async (req, res) => {
       });
     }
 
-    const boutique = await Boutique.findOne({ responsable: responsableId })
+    const boutique = await Boutique.find({ responsable: responsableId })
       .populate('box', 'numero surface prix_loyer libre')
       .populate('responsable', 'nom email prenom')
       .populate('categories', 'nom valide');

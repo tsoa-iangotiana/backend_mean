@@ -84,6 +84,7 @@ app.use('/articles', require('./routes/articleRoutes'));
 app.use('/box', require('./routes/admin/box.route'));
 app.use('/categorie', require('./routes/admin/categorie.route'));
 app.use('/boutique', require('./routes/boutique/boutique.route'));
+app.use('/produit', require('./routes/boutique/produits.routes'));
 // Route de test
 app.get('/', (req, res) => {
   res.json({ 
