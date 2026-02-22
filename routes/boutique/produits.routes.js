@@ -175,7 +175,7 @@ router.get('/',authMiddleware(['acheteur','boutique']),produitController.getProd
  *       500:
  *         description: Erreur serveur
  */
-router.get('/:id', authMiddleware, produitController.getProduit);
+router.get('/:id', authMiddleware(['acheteur','boutique']), produitController.getProduit);
 
 /**
  * @swagger
@@ -228,7 +228,7 @@ router.get('/:id', authMiddleware, produitController.getProduit);
  *       500:
  *         description: Erreur serveur
  */
-router.put('/:id', authMiddleware, produitController.updateProduit);
+router.put('/:id', authMiddleware(['acheteur','boutique']), produitController.updateProduit);
 
 /**
  * @swagger
@@ -257,7 +257,7 @@ router.put('/:id', authMiddleware, produitController.updateProduit);
  *       500:
  *         description: Erreur serveur
  */
-router.delete('/:id', authMiddleware, produitController.deleteProduit);
+router.delete('/:id', authMiddleware(['acheteur','boutique']), produitController.deleteProduit);
 
 /**
  * @swagger
@@ -286,7 +286,7 @@ router.delete('/:id', authMiddleware, produitController.deleteProduit);
  *       500:
  *         description: Erreur serveur
  */
-router.get('/:id/stock', authMiddleware, produitController.getSituationStock);
+router.get('/:id/stock', authMiddleware(['acheteur','boutique']), produitController.getSituationStock);
 
 /**
  * @swagger
@@ -328,6 +328,6 @@ router.get('/:id/stock', authMiddleware, produitController.getSituationStock);
  *       500:
  *         description: Erreur serveur
  */
-router.put('/:id/stock', authMiddleware, produitController.updateStock);
+router.put('/:id/stock', authMiddleware(['acheteur','boutique']), produitController.updateStock);
 
 module.exports = router;

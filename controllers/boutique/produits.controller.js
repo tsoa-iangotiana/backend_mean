@@ -200,15 +200,9 @@ const updateProduit = async (req, res) => {
 // @route   DELETE /api/produit/:id?boutiqueId=xxx
 const deleteProduit = async (req, res) => {
   try {
-    const { boutiqueId } = req.query;
-    
-    if (!boutiqueId) {
-      return res.status(400).json({ message: 'ID de la boutique requis' });
-    }
 
     const produit = await Produit.findOneAndDelete({
-      _id: req.params.id,
-      boutique: boutiqueId
+      _id: req.params.id
     });
 
     if (!produit) {
