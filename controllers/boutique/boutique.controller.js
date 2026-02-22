@@ -3,6 +3,8 @@ const Box = require('../../models/box.model');
 const User = require('../../models/user.model');
 const Categorie = require('../../models/categorie.model');
 const mongoose = require('mongoose');
+const cloudinary = require('../../config/cloudinary');
+
 
 /**
  * @desc    Créer une nouvelle boutique
@@ -11,8 +13,7 @@ const mongoose = require('mongoose');
  */
 const createBoutique = async (req, res) => {
   try {
-    const { 
-      profil_photo, 
+    const {  
       slogan, 
       condition_vente, 
       contact, 
@@ -24,7 +25,19 @@ const createBoutique = async (req, res) => {
       categories 
     } = req.body;
 
-    // Validation des champs requis
+    // 🔥 NORMALISATION DES TABLEAUX (IMPORTANT)
+    const categoriesArray = categories
+      ? (Array.isArray(categories) ? categories : [categories])
+      : [];
+
+    const contactArray = contact
+      ? (Array.isArray(contact) ? contact : [contact])
+      : [];
+
+    // ============================
+    // VALIDATIONS
+    // ============================
+
     if (!nom) {
       return res.status(400).json({
         success: false,
@@ -48,21 +61,7 @@ const createBoutique = async (req, res) => {
       });
     }
 
-    // VÉRIFICATION CRITIQUE: Si le responsable a déjà une boutique
-    // const boutiqueExistante = await Boutique.findOne({ responsable });
-    // if (boutiqueExistante) {
-    //   return res.status(400).json({
-    //     success: false,
-    //     message: 'Ce responsable a déjà une boutique. Un responsable ne peut avoir qu\'une seule boutique.',
-    //     boutiqueExistante: {
-    //       id: boutiqueExistante._id,
-    //       nom: boutiqueExistante.nom,
-    //       active: boutiqueExistante.active
-    //     }
-    //   });
-    // }
-
-    // Vérifier si le box existe et est libre (si un box est spécifié)
+    // Vérifier si le box existe et est libre
     if (box) {
       const boxExist = await Box.findById(box);
       if (!boxExist) {
@@ -80,14 +79,14 @@ const createBoutique = async (req, res) => {
       }
     }
 
-    // Vérifier que les catégories existent (si spécifiées)
-    if (categories && categories.length > 0) {
+    // Vérifier les catégories
+    if (categoriesArray.length > 0) {
       const categoriesExist = await Categorie.find({ 
-        '_id': { $in: categories },
+        _id: { $in: categoriesArray },
         valide: true 
       });
-      
-      if (categoriesExist.length !== categories.length) {
+
+      if (categoriesExist.length !== categoriesArray.length) {
         return res.status(400).json({
           success: false,
           message: 'Certaines catégories n\'existent pas ou ne sont pas valides'
@@ -95,35 +94,67 @@ const createBoutique = async (req, res) => {
       }
     }
 
-    // Créer la boutique
+    // ============================
+    // UPLOAD CLOUDINARY
+    // ============================
+
+    let profil_photo = null;
+    let cloudinary_id = null;
+
+    if (req.file) {
+      const result = await new Promise((resolve, reject) => {
+        cloudinary.uploader.upload_stream(
+          {
+            folder: 'boutiques',
+            transformation: [
+              { width: 500, height: 500, crop: 'fill' },
+              { quality: 'auto' }
+            ]
+          },
+          (error, result) => {
+            if (error) reject(error);
+            else resolve(result);
+          }
+        ).end(req.file.buffer);
+      });
+
+      profil_photo = result.secure_url;
+      cloudinary_id = result.public_id;
+    }
+
+    // ============================
+    // CREATION BOUTIQUE
+    // ============================
+
     const boutique = new Boutique({
       profil_photo,
+      cloudinary_id,
       slogan,
       condition_vente,
-      contact: contact || [],
+      contact: contactArray,
       nom,
       description,
       box,
       responsable,
       active: active !== undefined ? active : true,
-      categories: categories || [],
+      categories: categoriesArray,
       note_moyenne: 0
     });
 
     await boutique.save();
 
-    // Si un box est assigné, le marquer comme non libre
+    // Si un box est assigné → le bloquer
     if (box) {
       await Box.findByIdAndUpdate(box, { libre: false });
     }
 
-    // Peupler les références pour la réponse
+    // Populate
     const populatedBoutique = await Boutique.findById(boutique._id)
       .populate('box', 'numero surface prix_loyer')
       .populate('responsable', 'nom email prenom')
       .populate('categories', 'nom valide');
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: 'Boutique créée avec succès',
       boutique: populatedBoutique
@@ -131,13 +162,14 @@ const createBoutique = async (req, res) => {
 
   } catch (error) {
     console.error('❌ Erreur createBoutique:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Erreur lors de la création de la boutique',
       error: error.message
     });
   }
 };
+
 
 /**
  * @desc    Récupérer toutes les boutiques
@@ -291,7 +323,6 @@ const getBoutiqueByResponsable = async (req, res) => {
 const updateBoutique = async (req, res) => {
   try {
     const { id } = req.params;
-    const updates = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
@@ -309,13 +340,33 @@ const updateBoutique = async (req, res) => {
       });
     }
 
-    // Si on change le responsable, vérifier que le nouveau n'a pas déjà une boutique
-    if (updates.responsable && updates.responsable.toString() !== boutique.responsable?.toString()) {
-      const autreBoutique = await Boutique.findOne({ 
-        responsable: updates.responsable,
+    // ===============================
+    // 🔁 NORMALISATION DES TABLEAUX
+    // ===============================
+    const categoriesArray = req.body.categories
+      ? (Array.isArray(req.body.categories)
+          ? req.body.categories
+          : [req.body.categories])
+      : boutique.categories;
+
+    const contactArray = req.body.contact
+      ? (Array.isArray(req.body.contact)
+          ? req.body.contact
+          : [req.body.contact])
+      : boutique.contact;
+
+    // ===============================
+    // 👤 VERIFICATION RESPONSABLE
+    // ===============================
+    if (
+      req.body.responsable &&
+      req.body.responsable.toString() !== boutique.responsable?.toString()
+    ) {
+      const autreBoutique = await Boutique.findOne({
+        responsable: req.body.responsable,
         _id: { $ne: id }
       });
-      
+
       if (autreBoutique) {
         return res.status(400).json({
           success: false,
@@ -324,45 +375,52 @@ const updateBoutique = async (req, res) => {
       }
     }
 
-    // Si on change de box
-    if (updates.box && updates.box.toString() !== boutique.box?.toString()) {
-      // Libérer l'ancien box
+    // ===============================
+    // 📦 GESTION BOX
+    // ===============================
+    if (
+      req.body.box &&
+      req.body.box.toString() !== boutique.box?.toString()
+    ) {
+      // Libérer ancien box
       if (boutique.box) {
         await Box.findByIdAndUpdate(boutique.box, { libre: true });
       }
-      
-      // Vérifier et réserver le nouveau box
-      const nouveauBox = await Box.findById(updates.box);
+
+      // Vérifier nouveau box
+      const nouveauBox = await Box.findById(req.body.box);
       if (!nouveauBox) {
         return res.status(404).json({
           success: false,
           message: 'Nouveau box non trouvé'
         });
       }
-      
+
       if (!nouveauBox.libre) {
         return res.status(400).json({
           success: false,
           message: 'Le nouveau box n\'est pas disponible'
         });
       }
-      
-      await Box.findByIdAndUpdate(updates.box, { libre: false });
+
+      await Box.findByIdAndUpdate(req.body.box, { libre: false });
     }
 
-    // Si on enlève le box
-    if (updates.box === null && boutique.box) {
+    // Si suppression du box
+    if (req.body.box === null && boutique.box) {
       await Box.findByIdAndUpdate(boutique.box, { libre: true });
     }
 
-    // Mise à jour des catégories si nécessaire
-    if (updates.categories && updates.categories.length > 0) {
-      const categoriesExist = await Categorie.find({ 
-        '_id': { $in: updates.categories },
-        valide: true 
+    // ===============================
+    // 🏷 VERIFICATION CATEGORIES
+    // ===============================
+    if (categoriesArray && categoriesArray.length > 0) {
+      const categoriesExist = await Categorie.find({
+        _id: { $in: categoriesArray },
+        valide: true
       });
-      
-      if (categoriesExist.length !== updates.categories.length) {
+
+      if (categoriesExist.length !== categoriesArray.length) {
         return res.status(400).json({
           success: false,
           message: 'Certaines catégories n\'existent pas ou ne sont pas valides'
@@ -370,15 +428,65 @@ const updateBoutique = async (req, res) => {
       }
     }
 
-    // Mettre à jour la boutique
+    // ===============================
+    // 🖼 GESTION IMAGE CLOUDINARY
+    // ===============================
+    let profil_photo = boutique.profil_photo;
+    let cloudinary_id = boutique.cloudinary_id;
+
+    if (req.file) {
+      // Supprimer ancienne image
+      if (cloudinary_id) {
+        await cloudinary.uploader.destroy(cloudinary_id);
+      }
+
+      const result = await new Promise((resolve, reject) => {
+        cloudinary.uploader.upload_stream(
+          {
+            folder: 'boutiques',
+            transformation: [
+              { width: 500, height: 500, crop: 'fill' },
+              { quality: 'auto' }
+            ]
+          },
+          (error, result) => {
+            if (error) reject(error);
+            else resolve(result);
+          }
+        ).end(req.file.buffer);
+      });
+
+      profil_photo = result.secure_url;
+      cloudinary_id = result.public_id;
+    }
+
+    // ===============================
+    // 🔄 CONSTRUCTION UPDATE SAFE
+    // ===============================
+    const updates = {
+      nom: req.body.nom ?? boutique.nom,
+      slogan: req.body.slogan ?? boutique.slogan,
+      description: req.body.description ?? boutique.description,
+      condition_vente: req.body.condition_vente ?? boutique.condition_vente,
+      contact: contactArray,
+      categories: categoriesArray,
+      profil_photo,
+      cloudinary_id,
+      responsable: req.body.responsable ?? boutique.responsable,
+      box: req.body.box !== undefined ? req.body.box : boutique.box
+    };
+
+    // ===============================
+    // 💾 UPDATE FINAL
+    // ===============================
     const boutiqueMaj = await Boutique.findByIdAndUpdate(
       id,
       { $set: updates },
       { new: true, runValidators: true }
     )
-    .populate('box', 'numero surface prix_loyer libre')
-    .populate('responsable', 'nom email prenom')
-    .populate('categories', 'nom valide');
+      .populate('box', 'numero surface prix_loyer libre')
+      .populate('responsable', 'nom email prenom')
+      .populate('categories', 'nom valide');
 
     res.status(200).json({
       success: true,
@@ -394,6 +502,7 @@ const updateBoutique = async (req, res) => {
     });
   }
 };
+
 
 /**
  * @desc    Supprimer une boutique (soft delete ou hard delete)
