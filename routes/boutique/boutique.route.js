@@ -134,7 +134,14 @@ const boutiqueController = require('../../controllers/boutique/boutique.controll
  *       500:
  *         description: Erreur serveur
  */
-router.post('/insert', boutiqueController.createBoutique);
+// router.post('/insert', boutiqueController.createBoutique);
+
+const multer = require('multer');
+
+const storage = multer.memoryStorage();
+const upload = multer({ storage });
+
+router.post('/insert', upload.single('photo'), boutiqueController.createBoutique);
 
 /**
  * @swagger
@@ -308,7 +315,8 @@ router.get('/check-responsable/:responsableId', boutiqueController.checkResponsa
  *       500:
  *         description: Erreur serveur
  */
-router.put('/:id', boutiqueController.updateBoutique);
+router.put('/:id', upload.single('photo'), boutiqueController.updateBoutique);
+
 
 /**
  * @swagger
