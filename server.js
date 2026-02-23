@@ -88,6 +88,8 @@ app.use('/produit', require('./routes/boutique/produits.routes'));
 app.use('/promotion',require('./routes/boutique/promotions.routes'));
 app.use('/loyer', require('./routes/boutique/paiement.routes'));
 
+
+
 // Route de test
 app.get('/', (req, res) => {
   res.json({ 

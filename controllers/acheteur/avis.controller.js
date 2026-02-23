@@ -432,7 +432,7 @@ async function getAvisWithPagination(cibleType, cibleId, page, limit, tri) {
     cible_type: cibleType,
     cible_id: cibleId
   })
-    .populate('utilisateur', 'nom email avatar')
+    .populate('utilisateur', 'username email')
     .sort(sort)
     .skip(skip)
     .limit(limit)
