@@ -1,11 +1,9 @@
 const Commande = require('../../models/commande.model');
 const Produit = require('../../models/produit.model');
-const Panier = require('../../models/panier.model');
-const Promotion = require('../../models/promotion.model');
 const mongoose = require('mongoose');
 
 // @desc    Payer une commande (mettre à jour le statut et décrémenter le stock)
-// @route   PUT /api/commandes/:commandeId/payer
+// @route   PUT /commandes/:commandeId/payer
 const payerCommande = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -102,7 +100,7 @@ const payerCommande = async (req, res) => {
 };
 
 // @desc    Lister les commandes de l'utilisateur avec filtres
-// @route   GET /api/commandes
+// @route   GET /commandes
 const listerCommandes = async (req, res) => {
   try {
     const utilisateurId = req.user._id;
@@ -262,7 +260,7 @@ const listerCommandes = async (req, res) => {
 };
 
 // @desc    Obtenir les détails d'une commande spécifique
-// @route   GET /api/commandes/:commandeId
+// @route   GET /commandes/:commandeId
 const getCommandeDetails = async (req, res) => {
   try {
     const { commandeId } = req.params;
@@ -345,7 +343,7 @@ const getCommandeDetails = async (req, res) => {
 };
 
 // @desc    Annuler une commande
-// @route   PUT /api/commandes/:commandeId/annuler
+// @route   PUT /commandes/:commandeId/annuler
 const annulerCommande = async (req, res) => {
   try {
     const { commandeId } = req.params;

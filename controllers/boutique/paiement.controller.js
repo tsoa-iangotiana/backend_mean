@@ -2,15 +2,89 @@ const Paiement = require('../../models/paiement.model');
 const Boutique = require('../../models/boutique.model');
 const Box = require('../../models/box.model');
 
-// @desc    Paiement du loyer
-// @route   POST /api/boutique/paiement/payer
+// controllers/boutique/paiement.controller.js
+const getSituationLoyer = async (req, res) => {
+  try {
+    // Récupérer l'ID depuis les paramètres de requête (query params)
+    const { boutiqueId } = req.query;
+    
+    console.log("🔍 getSituationLoyer - boutiqueId reçu:", boutiqueId);
+
+    if (!boutiqueId) {
+      return res.status(400).json({ 
+        message: 'ID de la boutique requis' 
+      });
+    }
+
+    const maintenant = new Date();
+    
+    // Dernier paiement
+    const dernierPaiement = await Paiement.findOne({
+      boutique: boutiqueId
+    }).sort('-date_fin');
+
+    // Paiement actif
+    const paiementActif = await Paiement.findOne({
+      boutique: boutiqueId,
+      date_fin: { $gte: maintenant }
+    }).sort('-date_fin');
+
+    // Récupérer la boutique avec son box
+    const boutique = await Boutique.findById(boutiqueId).populate('box');
+    
+    if (!boutique) {
+      return res.status(404).json({ message: 'Boutique non trouvée' });
+    }
+
+    // Calculer les jours restants
+    let joursRestants = 0;
+    let statut = 'A_JOUR';
+    
+    if (paiementActif) {
+      joursRestants = Math.ceil((paiementActif.date_fin - maintenant) / (1000 * 60 * 60 * 24));
+    } else {
+      statut = 'RETARD';
+    }
+
+    res.json({
+      boutique: boutique.nom,
+      box: boutique.box?.numero || 'Non assigné',
+      loyer_mensuel: boutique.box?.prix_loyer || 0,
+      situation: {
+        statut,
+        dernier_paiement: dernierPaiement?.date_paiement || null,
+        prochaine_echeance: paiementActif?.date_fin || null,
+        jours_restants: joursRestants,
+        periode_en_cours: paiementActif?.periode || null,
+        montant_paye: dernierPaiement?.montant || 0
+      }
+    });
+
+  } catch (error) {
+    console.error("❌ Erreur getSituationLoyer:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Pour le paiement (en POST)
 const payerLoyer = async (req, res) => {
   try {
-    const { periode, montant } = req.body;
+    const { periode, montant, boutiqueId } = req.body;
     
+    console.log("💰 payerLoyer - boutiqueId:", boutiqueId);
+    console.log("💰 payerLoyer - periode:", periode);
+
+    if (!boutiqueId) {
+      return res.status(400).json({ message: 'ID de la boutique requis' });
+    }
+
     // Récupérer le box de la boutique pour le prix du loyer
-    const boutique = await Boutique.findById(req.boutique._id).populate('box');
+    const boutique = await Boutique.findById(boutiqueId).populate('box');
     
+    if (!boutique) {
+      return res.status(404).json({ message: 'Boutique non trouvée' });
+    }
+
     if (!boutique.box) {
       return res.status(400).json({ message: 'Aucun box assigné à cette boutique' });
     }
@@ -34,7 +108,7 @@ const payerLoyer = async (req, res) => {
     }
 
     const paiement = await Paiement.create({
-      boutique: req.boutique._id,
+      boutique: boutiqueId,
       montant: montant || boutique.box.prix_loyer,
       date_paiement: dateDebut,
       date_fin: dateFin,
@@ -50,67 +124,25 @@ const payerLoyer = async (req, res) => {
         periode: paiement.periode
       }
     });
+
   } catch (error) {
+    console.error("❌ Erreur payerLoyer:", error);
     res.status(500).json({ message: error.message });
   }
 };
 
-// @desc    Situation du loyer
-// @route   GET /api/boutique/paiement/situation
-const getSituationLoyer = async (req, res) => {
-  try {
-    const maintenant = new Date();
-    
-    // Dernier paiement
-    const dernierPaiement = await Paiement.findOne({
-      boutique: req.boutique._id
-    }).sort('-date_fin');
-
-    // Paiement actif
-    const paiementActif = await Paiement.findOne({
-      boutique: req.boutique._id,
-      date_fin: { $gte: maintenant }
-    }).sort('-date_fin');
-
-    // Récupérer le box
-    const boutique = await Boutique.findById(req.boutique._id).populate('box');
-    
-    // Calculer les jours restants
-    let joursRestants = 0;
-    let statut = 'A_JOUR';
-    
-    if (paiementActif) {
-      joursRestants = Math.ceil((paiementActif.date_fin - maintenant) / (1000 * 60 * 60 * 24));
-    } else {
-      statut = 'RETARD';
-    }
-
-    res.json({
-      boutique: req.boutique.nom,
-      box: boutique.box?.numero || 'Non assigné',
-      loyer_mensuel: boutique.box?.prix_loyer || 0,
-      situation: {
-        statut,
-        dernier_paiement: dernierPaiement?.date_paiement || null,
-        prochaine_echeance: paiementActif?.date_fin || null,
-        jours_restants: joursRestants,
-        periode_en_cours: paiementActif?.periode || null,
-        montant_paye: dernierPaiement?.montant || 0
-      }
-    });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-// @desc    Historique des paiements
-// @route   GET /api/boutique/paiement/historique
+// Pour l'historique
 const getHistoriquePaiements = async (req, res) => {
   try {
+    const { boutiqueId } = req.query;
+
+    if (!boutiqueId) {
+      return res.status(400).json({ message: 'ID de la boutique requis' });
+    }
+
     const paiements = await Paiement.find({
-      boutique: req.boutique._id
-    })
-    .sort('-date_paiement');
+      boutique: boutiqueId
+    }).sort('-date_paiement');
 
     const totalDepense = paiements.reduce((sum, p) => sum + p.montant, 0);
 
@@ -126,7 +158,9 @@ const getHistoriquePaiements = async (req, res) => {
         statut: p.date_fin < new Date() ? 'EXPIRE' : 'ACTIF'
       }))
     });
+
   } catch (error) {
+    console.error("❌ Erreur getHistoriquePaiements:", error);
     res.status(500).json({ message: error.message });
   }
 };

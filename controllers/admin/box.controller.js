@@ -1,11 +1,9 @@
-const Box = require('../models/box.model');
-const Boutique = require('../models/boutique.model');
-const BoxHistorique = require('../models/box_historique.model');
+const Box = require('../../models/box.model');
+const Boutique = require('../../models/boutique.model');
+const BoxHistorique = require('../../models/box_historique.model');
 const mongoose = require('mongoose');
 
-// @desc    Créer un nouveau box
-// @route   POST /api/box
-// @access  Private (Admin seulement)
+
 const createBox = async (req, res) => {
   try {
     const { numero, surface, prix_loyer } = req.body;
@@ -53,11 +51,7 @@ const createBox = async (req, res) => {
 
 // @desc    Attribuer un box à une boutique
 // @route   POST /api/box/:boxId/attribuer
-// @access  Private (Admin seulement)
 const attribuerBox = async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
   try {
     const { boxId } = req.params;
     const { boutiqueId, date_debut } = req.body;
@@ -71,7 +65,7 @@ const attribuerBox = async (req, res) => {
     }
 
     // Vérifier que le box existe
-    const box = await Box.findById(boxId).session(session);
+    const box = await Box.findById(boxId);
     if (!box) {
       return res.status(404).json({
         success: false,
@@ -88,7 +82,7 @@ const attribuerBox = async (req, res) => {
     }
 
     // Vérifier que la boutique existe et n'a pas déjà un box
-    const boutique = await Boutique.findById(boutiqueId).session(session);
+    const boutique = await Boutique.findById(boutiqueId);
     if (!boutique) {
       return res.status(404).json({
         success: false,
@@ -114,18 +108,15 @@ const attribuerBox = async (req, res) => {
       date_debut: debut
     });
 
-    await historique.save({ session });
+    await historique.save();
 
     // Mettre à jour le box (occupé)
     box.libre = false;
-    await box.save({ session });
+    await box.save();
 
     // Mettre à jour la boutique avec la référence du box
     boutique.box = boxId;
-    await boutique.save({ session });
-
-    await session.commitTransaction();
-    session.endSession();
+    await boutique.save();
 
     res.json({
       success: true,
@@ -145,9 +136,6 @@ const attribuerBox = async (req, res) => {
     });
 
   } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
-    
     console.error('❌ Erreur attribuerBox:', error);
     res.status(500).json({
       success: false,

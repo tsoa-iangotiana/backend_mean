@@ -81,6 +81,19 @@ app.use((req, res, next) => {
 // Routes
 app.use('/auth', require('./routes/commun/user.routes'));
 app.use('/articles', require('./routes/articleRoutes')); 
+app.use('/box', require('./routes/admin/box.route'));
+app.use('/categorie', require('./routes/admin/categorie.route'));
+app.use('/boutique', require('./routes/boutique/boutique.route'));
+app.use('/produit', require('./routes/boutique/produits.routes'));
+app.use('/promotion',require('./routes/boutique/promotions.routes'));
+app.use('/loyer', require('./routes/boutique/paiement.routes'));
+app.use('/ticket', require('./routes/boutique/tickets.routes'));
+
+//routes pour acheteur
+app.use('/acheteur/panier',require('./routes/acheteur/panier.route'));
+app.use('/acheteur/commande',require('./routes/acheteur/commande.route'));
+app.use('/acheteur/avis',require('./routes/acheteur/avis.route'));
+app.use('/acheteur/note',require('./routes/acheteur/note.route'));
 
 // Route de test
 app.get('/', (req, res) => {

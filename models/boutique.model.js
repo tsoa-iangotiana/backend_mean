@@ -1,6 +1,22 @@
 const mongoose = require('mongoose');
 
 const boutiqueSchema = new mongoose.Schema({
+  profil_photo: {
+    type: String,
+    default: null
+  },
+  slogan: {
+    type: String,
+    default: null
+  },
+  condition_vente:{
+    type: String,
+    default: null
+  },
+  contact:[{
+    type: String,
+    default: []
+  }],
   nom: {
     type: String,
     required: true,
