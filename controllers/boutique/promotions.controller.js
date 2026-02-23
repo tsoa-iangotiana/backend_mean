@@ -65,11 +65,32 @@ const createPromotion = async (req, res) => {
 
 // @desc    Liste des promotions
 // @route   GET /api/boutique/promotions
+// @desc    Liste des promotions (avec filtre boutique)
+// @route   GET /api/boutique/promotions
+// @desc    Liste des promotions (filtrées par boutique)
+// @route   GET /api/boutique/promotions
 const getPromotions = async (req, res) => {
   try {
-    const promotions = await Promotion.find()
-      .populate('produits', 'nom prix images categorie actif')
-      .sort('-createdAt');
+    // Récupérer l'ID de la boutique depuis la requête (mis par le middleware)
+    const boutiqueId = req.boutique?._id || req.query.boutiqueId;
+    
+    if (!boutiqueId) {
+      return res.status(400).json({ 
+        message: 'ID de boutique requis' 
+      });
+    }
+
+    // Récupérer tous les produits de cette boutique
+    const produitsDeLaBoutique = await Produit.find({ 
+      boutique: boutiqueId 
+    }).distinct('_id');
+
+    // Filtrer les promotions qui contiennent au moins un produit de la boutique
+    const promotions = await Promotion.find({
+      produits: { $in: produitsDeLaBoutique }
+    })
+    .populate('produits', 'nom prix images categorie actif')
+    .sort('-createdAt');
 
     res.json(promotions);
   } catch (error) {
@@ -78,26 +99,38 @@ const getPromotions = async (req, res) => {
   }
 };
 
-// @desc    Promotions actives
+// @desc    Promotions actives (filtrées par boutique)
 // @route   GET /api/boutique/promotions/actives
 const getPromotionsActives = async (req, res) => {
   try {
     const maintenant = new Date();
+    const boutiqueId = req.boutique?._id || req.query.boutiqueId;
     
+    if (!boutiqueId) {
+      return res.status(400).json({ 
+        message: 'ID de boutique requis' 
+      });
+    }
+
+    // Récupérer tous les produits de cette boutique
+    const produitsDeLaBoutique = await Produit.find({ 
+      boutique: boutiqueId 
+    }).distinct('_id');
+
+    // Filtrer les promotions actives
     const promotions = await Promotion.find({
+      produits: { $in: produitsDeLaBoutique },
       $or: [
-        // Promotions sans date de début (actives immédiatement)
         { date_debut: null },
-        // Promotions avec date de début déjà passée
         { date_debut: { $lte: maintenant } }
       ],
       $or: [
-        // Promotions sans date de fin (permanentes)
         { date_fin: null },
-        // Promotions avec date de fin pas encore passée
         { date_fin: { $gte: maintenant } }
       ]
-    }).populate('produits', 'nom prix images categorie actif');
+    })
+    .populate('produits', 'nom prix images categorie actif')
+    .sort('-createdAt');
 
     res.json(promotions);
   } catch (error) {
@@ -106,15 +139,34 @@ const getPromotionsActives = async (req, res) => {
   }
 };
 
-// @desc    Obtenir une promotion par ID
+// @desc    Obtenir une promotion par ID (avec vérification boutique)
 // @route   GET /api/boutique/promotions/:id
 const getPromotionById = async (req, res) => {
   try {
     const promotion = await Promotion.findById(req.params.id)
-      .populate('produits', 'nom prix images categorie actif');
+      .populate({
+        path: 'produits',
+        select: 'nom prix images categorie actif boutique',
+        populate: {
+          path: 'boutique',
+          select: 'nom'
+        }
+      });
     
     if (!promotion) {
       return res.status(404).json({ message: 'Promotion non trouvée' });
+    }
+
+    // Vérifier que la promotion appartient à la boutique (si utilisateur est boutique)
+    if (req.user && req.user.role === 'boutique' && req.boutique) {
+      const produitsPromo = await Produit.find({
+        _id: { $in: promotion.produits.map(p => p._id) },
+        boutique: req.boutique._id
+      });
+      
+      if (produitsPromo.length === 0) {
+        return res.status(403).json({ message: 'Non autorisé' });
+      }
     }
 
     res.json(promotion);
