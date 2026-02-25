@@ -93,6 +93,7 @@ app.use('/acheteur/panier',require('./routes/acheteur/panier.route'));
 app.use('/acheteur/commande',require('./routes/acheteur/commande.route'));
 app.use('/acheteur/avis',require('./routes/acheteur/avis.route'));
 app.use('/acheteur/note',require('./routes/acheteur/note.route'));
+app.use('/acheteur/favoris',require('./routes/acheteur/favoris.route'));
 
 // Route de test
 app.get('/', (req, res) => {
