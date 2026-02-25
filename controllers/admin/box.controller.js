@@ -148,15 +148,12 @@ const attribuerBox = async (req, res) => {
 // @route   POST /api/box/:boxId/liberer
 // @access  Private (Admin seulement)
 const libererBox = async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
   try {
     const { boxId } = req.params;
     const { date_fin } = req.body;
 
     // Vérifier que le box existe
-    const box = await Box.findById(boxId).session(session);
+    const box = await Box.findById(boxId);
     if (!box) {
       return res.status(404).json({
         success: false,
@@ -173,7 +170,7 @@ const libererBox = async (req, res) => {
     }
 
     // Trouver la boutique associée
-    const boutique = await Boutique.findOne({ box: boxId }).session(session);
+    const boutique = await Boutique.findOne({ box: boxId });
     if (!boutique) {
       return res.status(404).json({
         success: false,
@@ -181,12 +178,12 @@ const libererBox = async (req, res) => {
       });
     }
 
-    // Trouver l'entrée d'historique active (sans date de fin)
+    // Trouver l'entrée d'historique active
     const historiqueActif = await BoxHistorique.findOne({
       box: boxId,
       boutique: boutique._id,
       date_fin: null
-    }).session(session);
+    });
 
     if (!historiqueActif) {
       return res.status(404).json({
@@ -195,49 +192,75 @@ const libererBox = async (req, res) => {
       });
     }
 
-    // Date de fin (par défaut maintenant)
+    // Sauvegarder les états initiaux pour rollback
+    const etatInitial = {
+      boxLibre: box.libre,
+      boutiqueBox: boutique.box,
+      historiqueDateFin: historiqueActif.date_fin
+    };
+
     const fin = date_fin ? new Date(date_fin) : new Date();
 
-    // Mettre à jour l'historique
-    historiqueActif.date_fin = fin;
-    await historiqueActif.save({ session });
+    try {
+      // 1. Mettre à jour l'historique
+      historiqueActif.date_fin = fin;
+      await historiqueActif.save();
 
-    // Libérer le box
-    box.libre = true;
-    await box.save({ session });
+      // 2. Libérer le box
+      box.libre = true;
+      await box.save();
 
-    // Retirer la référence du box de la boutique
-    boutique.box = null;
-    await boutique.save({ session });
+      // 3. Retirer la référence du box
+      boutique.box = null;
+      await boutique.save();
 
-    await session.commitTransaction();
-    session.endSession();
+      // Succès
+      const dureeOccupation = Math.ceil((fin - historiqueActif.date_debut) / (1000 * 60 * 60 * 24));
 
-    // Calculer la durée d'occupation
-    const dureeOccupation = Math.ceil((fin - historiqueActif.date_debut) / (1000 * 60 * 60 * 24));
+      res.json({
+        success: true,
+        message: 'Box libéré avec succès',
+        liberation: {
+          box: {
+            id: box._id,
+            numero: box.numero
+          },
+          boutique: {
+            id: boutique._id,
+            nom: boutique.nom
+          },
+          date_debut: historiqueActif.date_debut,
+          date_fin: fin,
+          duree_occupation: `${dureeOccupation} jour${dureeOccupation > 1 ? 's' : ''}`
+        }
+      });
 
-    res.json({
-      success: true,
-      message: 'Box libéré avec succès',
-      liberation: {
-        box: {
-          id: box._id,
-          numero: box.numero
-        },
-        boutique: {
-          id: boutique._id,
-          nom: boutique.nom
-        },
-        date_debut: historiqueActif.date_debut,
-        date_fin: fin,
-        duree_occupation: `${dureeOccupation} jour${dureeOccupation > 1 ? 's' : ''}`
-      }
-    });
+    } catch (updateError) {
+      // Rollback manuel en cas d'erreur
+      console.error('❌ Erreur pendant la libération, rollback...', updateError);
+
+      // Restaurer l'historique
+      historiqueActif.date_fin = etatInitial.historiqueDateFin;
+      await historiqueActif.save().catch(e => 
+        console.error('Rollback historique échoué:', e)
+      );
+
+      // Restaurer le box
+      box.libre = etatInitial.boxLibre;
+      await box.save().catch(e => 
+        console.error('Rollback box échoué:', e)
+      );
+
+      // Restaurer la boutique
+      boutique.box = etatInitial.boutiqueBox;
+      await boutique.save().catch(e => 
+        console.error('Rollback boutique échoué:', e)
+      );
+
+      throw updateError;
+    }
 
   } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
-    
     console.error('❌ Erreur libererBox:', error);
     res.status(500).json({
       success: false,
@@ -245,14 +268,10 @@ const libererBox = async (req, res) => {
     });
   }
 };
-
 // @desc    Transférer un box d'une boutique à une autre
 // @route   POST /api/box/:boxId/transferer
-// @access  Private (Admin seulement)
+// box.controller.js (version sans transactions)
 const transfererBox = async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
   try {
     const { boxId } = req.params;
     const { nouvelleBoutiqueId, date_transfert } = req.body;
@@ -266,7 +285,7 @@ const transfererBox = async (req, res) => {
     }
 
     // Vérifier que le box existe
-    const box = await Box.findById(boxId).session(session);
+    const box = await Box.findById(boxId);
     if (!box) {
       return res.status(404).json({
         success: false,
@@ -283,7 +302,7 @@ const transfererBox = async (req, res) => {
     }
 
     // Trouver l'ancienne boutique
-    const ancienneBoutique = await Boutique.findOne({ box: boxId }).session(session);
+    const ancienneBoutique = await Boutique.findOne({ box: boxId });
     if (!ancienneBoutique) {
       return res.status(404).json({
         success: false,
@@ -292,7 +311,7 @@ const transfererBox = async (req, res) => {
     }
 
     // Vérifier que la nouvelle boutique existe
-    const nouvelleBoutique = await Boutique.findById(nouvelleBoutiqueId).session(session);
+    const nouvelleBoutique = await Boutique.findById(nouvelleBoutiqueId);
     if (!nouvelleBoutique) {
       return res.status(404).json({
         success: false,
@@ -316,12 +335,12 @@ const transfererBox = async (req, res) => {
       box: boxId,
       boutique: ancienneBoutique._id,
       date_fin: null
-    }).session(session);
+    });
 
     if (historiqueAncien) {
       // Clôturer l'ancien historique
       historiqueAncien.date_fin = transfertDate;
-      await historiqueAncien.save({ session });
+      await historiqueAncien.save();
     }
 
     // Créer le nouvel historique
@@ -330,19 +349,14 @@ const transfererBox = async (req, res) => {
       boutique: nouvelleBoutiqueId,
       date_debut: transfertDate
     });
-    await nouvelHistorique.save({ session });
+    await nouvelHistorique.save();
 
     // Mettre à jour les boutiques
     ancienneBoutique.box = null;
-    await ancienneBoutique.save({ session });
+    await ancienneBoutique.save();
 
     nouvelleBoutique.box = boxId;
-    await nouvelleBoutique.save({ session });
-
-    // Le box reste occupé (libre = false inchangé)
-
-    await session.commitTransaction();
-    session.endSession();
+    await nouvelleBoutique.save();
 
     res.json({
       success: true,
@@ -365,9 +379,6 @@ const transfererBox = async (req, res) => {
     });
 
   } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
-    
     console.error('❌ Erreur transfererBox:', error);
     res.status(500).json({
       success: false,
@@ -375,7 +386,6 @@ const transfererBox = async (req, res) => {
     });
   }
 };
-
 // @desc    Obtenir tous les box avec filtres
 // @route   GET /api/box
 // @access  Private (Admin)
@@ -453,7 +463,7 @@ const getAllBox = async (req, res) => {
 
         return {
           ...box,
-          occupé_par: boutique || null,
+          occupe_par: boutique || null,
           historique_actif: historique ? {
             depuis: historique.date_debut,
             boutique: historique.boutique

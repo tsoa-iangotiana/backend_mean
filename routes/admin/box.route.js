@@ -582,7 +582,7 @@ router.delete('/:boxId', deleteBox);
  *         - $ref: '#/components/schemas/Box'
  *         - type: object
  *           properties:
- *             occupé_par:
+ *             occupe_par:
  *               type: object
  *               nullable: true
  *             historique_actif:
