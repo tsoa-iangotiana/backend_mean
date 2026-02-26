@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const boutiqueController = require('../../controllers/boutique/boutique.controller');
+const authMiddleware = require('../../middlewares/auth.middleware');
+
 
 /**
  * @swagger
@@ -178,7 +180,7 @@ router.post('/insert', upload.single('photo'), boutiqueController.createBoutique
  *       500:
  *         description: Erreur serveur
  */
-router.get('/all', boutiqueController.getAllBoutiques);
+router.get('/all', authMiddleware(['acheteur', 'boutique','admin']), boutiqueController.getAllBoutiques);
 
 /**
  * @swagger

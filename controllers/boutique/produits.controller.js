@@ -82,25 +82,46 @@ const getProduits = async (req, res) => {
     
     console.log('→ Début getProduits | boutiqueId:', boutiqueId);
     console.log('→ Paramètres reçus:', { page, limit, actif, categorie, search });
+    console.log('→ Rôle utilisateur:', req.user?.role); // Debug
 
     if (!boutiqueId) {
       return res.status(400).json({ message: 'ID de la boutique requis' });
     }
 
-    console.time('→ Vérification autorisation boutique');
-    const boutique = await Boutique.findOne({ 
-      _id: boutiqueId, 
-      responsable: req.user._id 
-    });
-    console.timeEnd('→ Vérification autorisation boutique');
-
-    if (!boutique) {
-      return res.status(403).json({ message: 'Accès non autorisé à cette boutique' });
+    // ✅ Vérifier que la boutique existe d'abord
+    const boutiqueExists = await Boutique.findById(boutiqueId);
+    if (!boutiqueExists) {
+      return res.status(404).json({ message: 'Boutique non trouvée' });
     }
+
+    // ✅ Vérification d'autorisation selon le rôle
+    if (req.user.role === 'boutique') {
+      // Pour un responsable boutique : vérifier que c'est SA boutique
+      console.time('→ Vérification autorisation boutique');
+      const boutique = await Boutique.findOne({ 
+        _id: boutiqueId, 
+        responsable: req.user._id 
+      });
+      console.timeEnd('→ Vérification autorisation boutique');
+
+      if (!boutique) {
+        return res.status(403).json({ message: 'Accès non autorisé à cette boutique' });
+      }
+    }
+    // Pour un acheteur : pas de vérification supplémentaire
+    // (il peut voir les produits de toutes les boutiques)
 
     let query = { boutique: new mongoose.Types.ObjectId(boutiqueId) };
     
-    if (actif !== undefined) query.actif = actif === 'true';
+    // Gestion du filtre actif selon le rôle
+    if (req.user.role === 'acheteur') {
+      // Pour les acheteurs, toujours voir uniquement les produits actifs
+      query.actif = true;
+    } else if (actif !== undefined) {
+      // Pour les boutiques, appliquer le filtre actif s'il est fourni
+      query.actif = actif === 'true';
+    }
+
     if (categorie) query.categorie = new mongoose.Types.ObjectId(categorie);
     if (search) {
       query.nom = { $regex: search.trim(), $options: 'i' };

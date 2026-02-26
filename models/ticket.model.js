@@ -11,6 +11,31 @@ const ticketSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
+  commentaires: [{
+    auteurType: {
+      type: String,
+      enum: ['user', 'boutique'],
+      required: true
+    },
+    auteur: {
+      type: mongoose.Schema.Types.ObjectId,
+      required: true,
+      refPath: 'commentaires.auteurRef'
+    },
+    auteurRef: {
+      type: String,
+      enum: ['User', 'Boutique'],
+      required: true
+    },
+    texte: {
+      type: String,
+      required: true
+    },
+    date: {
+      type: Date,
+      default: Date.now
+    }
+  }],
   description: {
     type: String,
     required: true
