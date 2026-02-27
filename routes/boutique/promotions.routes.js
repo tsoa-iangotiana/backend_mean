@@ -14,7 +14,7 @@ const authMiddleware = require('../../middlewares/auth.middleware');
 const { estBoutique, verifierPaiement } = require('../../middlewares/boutique.middleware');
 
 // Toutes les routes nécessitent authentification boutique et paiement valide
-router.use(authMiddleware(['boutique']));
+router.use(authMiddleware(['boutique','acheteur']));
 
 /**
  * @swagger

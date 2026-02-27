@@ -32,7 +32,7 @@ const commandeSchema = new mongoose.Schema({
   },
   statut: {
     type: String,
-    enum: ['PAYEE', 'ANNULEE', 'EN_ATTENTE', 'LIVREE'],
+    enum: ['PAYEE', 'ANNULEE', 'EN_ATTENTE', 'LIVREE', 'RECUPEREE'],
     default: 'EN_ATTENTE'
   }
 }, {
