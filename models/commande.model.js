@@ -26,6 +26,21 @@ const commandeSchema = new mongoose.Schema({
       required: true
     }
   }],
+  livraison: {
+      required: false,
+    adresse:{
+      type: String,
+      required: true
+    },
+    distance:{
+      type: Number,
+      required: true
+    },
+    frais:{
+      type: Number,
+      required: true
+    }
+  },
   montant_total: {
     type: Number,
     required: true
@@ -34,7 +49,7 @@ const commandeSchema = new mongoose.Schema({
     type: String,
     enum: ['PAYEE', 'ANNULEE', 'EN_ATTENTE', 'LIVREE', 'RECUPEREE'],
     default: 'EN_ATTENTE'
-  }
+  },
 }, {
   timestamps: true
 });
