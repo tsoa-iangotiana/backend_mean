@@ -5,13 +5,10 @@ const mongoose = require('mongoose');
 // @desc    Payer une commande (mettre à jour le statut et décrémenter le stock)
 // @route   PUT /commandes/:commandeId/payer
 const payerCommande = async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
   try {
     const { commandeId } = req.params;
     const utilisateurId = req.user._id;
-    const { mode_paiement } = req.body; // Optionnel: informations de paiement
+    const { livraison } = req.body;
 
     // Récupérer la commande
     const commande = await Commande.findOne({
@@ -39,27 +36,27 @@ const payerCommande = async (req, res) => {
       }
     }
 
-    // Mettre à jour les stocks
+    // Mettre à jour les stocks (un par un, sans transaction)
     for (const item of commande.items) {
       await Produit.findByIdAndUpdate(
         item.produit._id,
-        { $inc: { stock: -item.quantite } },
-        { session }
+        { $inc: { stock: -item.quantite } }
       );
+    }
+
+    // Mettre à jour les informations de livraison si fournies
+    if (livraison) {
+      commande.livraison = {
+        adresse: livraison.adresse,
+        distance: livraison.distance,
+        frais: livraison.frais
+      };
     }
 
     // Mettre à jour le statut de la commande
     commande.statut = 'PAYEE';
-    commande.paiement = {
-      mode: mode_paiement || 'CARTE',
-      date: new Date(),
-      montant: commande.montant_total
-    };
     
-    await commande.save({ session });
-
-    await session.commitTransaction();
-    session.endSession();
+    await commande.save();
 
     // Récupérer la commande mise à jour avec les détails
     const commandeComplete = await Commande.findById(commande._id)
@@ -73,25 +70,17 @@ const payerCommande = async (req, res) => {
         boutique: commandeComplete.boutique.nom,
         montant_total: commandeComplete.montant_total,
         statut: commandeComplete.statut,
-        date_paiement: commandeComplete.paiement.date,
+        livraison: commandeComplete.livraison, // null si pas de livraison
         items: commandeComplete.items.map(item => ({
           produit: item.produit.nom,
           quantite: item.quantite,
           prix_unitaire: item.prix_unitaire,
           total: item.prix_unitaire * item.quantite
         }))
-      },
-      reçu: {
-        numéro: `CMD-${commande._id.toString().slice(-8).toUpperCase()}`,
-        date: new Date().toLocaleDateString('fr-FR'),
-        montant: commande.montant_total.toFixed(2) + ' €'
       }
     });
 
   } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
-    
     console.error('Erreur payerCommande:', error);
     res.status(500).json({ 
       message: error.message || 'Erreur lors du paiement de la commande' 
