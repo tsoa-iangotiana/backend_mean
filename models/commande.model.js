@@ -26,21 +26,24 @@ const commandeSchema = new mongoose.Schema({
       required: true
     }
   }],
-  livraison: {
-      required: false,
-    adresse:{
+ livraison: {
+  type: new mongoose.Schema({
+    adresse: {
       type: String,
       required: true
     },
-    distance:{
+    distance: {
       type: Number,
       required: true
     },
-    frais:{
+    frais: {
       type: Number,
       required: true
     }
-  },
+  }, { _id: false }),
+  required: false,  // ✅ ici "required" est bien une option du champ parent
+  default: null
+},
   montant_total: {
     type: Number,
     required: true
