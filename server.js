@@ -88,7 +88,7 @@ app.use('/produit', require('./routes/boutique/produits.routes'));
 app.use('/promotion',require('./routes/boutique/promotions.routes'));
 app.use('/loyer', require('./routes/boutique/paiement.routes'));
 app.use('/ticket', require('./routes/boutique/tickets.routes'));
-
+app.use('/admin/dashboard',require('./routes/admin/dashboard.route'));
 //routes pour acheteur
 app.use('/acheteur/panier',require('./routes/acheteur/panier.route'));
 app.use('/acheteur/commande',require('./routes/acheteur/commande.route'));

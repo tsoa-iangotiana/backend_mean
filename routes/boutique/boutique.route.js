@@ -180,7 +180,7 @@ router.post('/insert', upload.single('photo'), boutiqueController.createBoutique
  *       500:
  *         description: Erreur serveur
  */
-router.get('/all', authMiddleware(['acheteur', 'boutique']), boutiqueController.getAllBoutiques);
+router.get('/all', authMiddleware(['acheteur', 'boutique','admin']), boutiqueController.getAllBoutiques);
 
 /**
  * @swagger
