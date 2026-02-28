@@ -237,16 +237,19 @@ const getTotalPanier = async (req, res) => {
 // @desc    Valider le panier et créer une commande
 // @route   POST /api/panier/valider
 const validerPanier = async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
   try {
     const utilisateurId = req.user._id;
     const { notes } = req.body;
 
-    // Récupérer le panier
+    // Récupérer le panier avec les détails complets (boutique incluse)
     const panier = await Panier.findOne({ utilisateur: utilisateurId })
-      .populate('items.produit');
+      .populate({
+        path: 'items.produit',
+        populate: {
+          path: 'boutique',
+          select: 'nom'
+        }
+      });
 
     if (!panier || panier.items.length === 0) {
       return res.status(400).json({ message: 'Panier vide' });
@@ -254,6 +257,9 @@ const validerPanier = async (req, res) => {
 
     // Vérifier la disponibilité des produits et regrouper par boutique
     const commandesParBoutique = new Map();
+    
+    // Pour les logs détaillés
+    const detailsProduits = [];
 
     for (const item of panier.items) {
       const produit = item.produit;
@@ -268,18 +274,13 @@ const validerPanier = async (req, res) => {
       // Vérifier le stock
       if (produit.stock < item.quantite) {
         return res.status(400).json({ 
-          message: `Stock insuffisant pour ${produit.nom}. Disponible: ${produit.stock}` 
-        });
-      }
-
-      // Vérifier la boutique du produit
-      const boutiqueId = produit.boutique.toString();
-      
-      if (!commandesParBoutique.has(boutiqueId)) {
-        commandesParBoutique.set(boutiqueId, {
-          boutique: produit.boutique,
-          items: [],
-          montant_total: 0
+          message: `Stock insuffisant pour ${produit.nom}. Disponible: ${produit.stock}`,
+          produit: {
+            id: produit._id,
+            nom: produit.nom,
+            stock_disponible: produit.stock,
+            stock_demande: item.quantite
+          }
         });
       }
 
@@ -290,19 +291,70 @@ const validerPanier = async (req, res) => {
         date_fin: { $gte: new Date() }
       });
 
+      const prix_original = produit.prix;
+      const reduction = promotion ? promotion.reduction : 0;
       const prix_unitaire = promotion 
-        ? produit.prix * (1 - promotion.reduction / 100)
+        ? Math.round(produit.prix * (1 - promotion.reduction / 100) * 100) / 100
         : produit.prix;
 
-      commandesParBoutique.get(boutiqueId).items.push({
-        produit: produit._id,
-        prix_unitaire: Math.round(prix_unitaire * 100) / 100,
+      const boutiqueId = produit.boutique._id.toString();
+      
+      if (!commandesParBoutique.has(boutiqueId)) {
+        commandesParBoutique.set(boutiqueId, {
+          boutique: {
+            _id: produit.boutique._id,
+            nom: produit.boutique.nom
+          },
+          items: [],
+          montant_total: 0,
+          sous_total_original: 0,
+          total_economies: 0
+        });
+      }
+
+      const group = commandesParBoutique.get(boutiqueId);
+      const itemTotal = prix_unitaire * item.quantite;
+      const itemOriginalTotal = prix_original * item.quantite;
+      
+      // Ajouter l'item avec tous ses détails
+      group.items.push({
+        produit: {
+          _id: produit._id,
+          nom: produit.nom,
+          description: produit.description ? 
+            (produit.description.length > 100 ? 
+              produit.description.substring(0, 100) + '...' : 
+              produit.description) : null,
+          prix: produit.prix,
+          image: produit.images && produit.images.length > 0 ? produit.images[0] : null,
+          unite: produit.unite,
+          categorie: produit.categorie,
+          note_moyenne: produit.note_moyenne
+        },
         quantite: item.quantite,
-        nom_produit: produit.nom
+        prix_unitaire: prix_unitaire,
+        prix_original: prix_original,
+        reduction: reduction,
+        total: itemTotal,
+        economies: itemOriginalTotal - itemTotal,
+        en_promotion: !!promotion
       });
 
-      commandesParBoutique.get(boutiqueId).montant_total += 
-        prix_unitaire * item.quantite;
+      group.montant_total += itemTotal;
+      group.sous_total_original += itemOriginalTotal;
+      group.total_economies += (itemOriginalTotal - itemTotal);
+
+      // Ajouter aux détails pour le log
+      detailsProduits.push({
+        boutique: produit.boutique.nom,
+        produit: produit.nom,
+        quantite: item.quantite,
+        prix_unitaire: prix_unitaire,
+        prix_original: prix_original,
+        reduction: reduction,
+        total: itemTotal,
+        economies: itemOriginalTotal - itemTotal
+      });
     }
 
     // Créer une commande par boutique
@@ -312,45 +364,97 @@ const validerPanier = async (req, res) => {
       const nouvelleCommande = new Commande({
         utilisateur: utilisateurId,
         boutique: boutiqueId,
-        items: commandeData.items.map(({ produit, prix_unitaire, quantite }) => ({
-          produit,
-          prix_unitaire,
-          quantite
+        items: commandeData.items.map(item => ({
+          produit: item.produit._id,
+          prix_unitaire: item.prix_unitaire,
+          quantite: item.quantite
         })),
         montant_total: Math.round(commandeData.montant_total * 100) / 100,
         statut: 'EN_ATTENTE'
       });
 
-      await nouvelleCommande.save({ session });
+      await nouvelleCommande.save();
       commandesCrees.push(nouvelleCommande);
     }
 
     // Vider le panier
     panier.items = [];
     panier.total = 0;
-    await panier.save({ session });
+    await panier.save();
 
-    await session.commitTransaction();
-    session.endSession();
+    // Calculer les totaux globaux
+    const totalGlobal = commandesCrees.reduce((sum, cmd) => sum + cmd.montant_total, 0);
+    const sousTotalGlobal = Array.from(commandesParBoutique.values())
+      .reduce((sum, group) => sum + group.sous_total_original, 0);
+    const economiesGlobales = Array.from(commandesParBoutique.values())
+      .reduce((sum, group) => sum + group.total_economies, 0);
 
+    // Réponse enrichie avec tous les détails
     res.status(201).json({
-      message: `Commande${commandesCrees.length > 1 ? 's' : ''} créée${commandesCrees.length > 1 ? 's' : ''} avec succès`,
-      commandes: commandesCrees.map(cmd => ({
-        id: cmd._id,
-        boutique: cmd.boutique,
-        montant_total: cmd.montant_total,
-        statut: cmd.statut
-      })),
-      nombre_commandes: commandesCrees.length,
-      total_global: commandesCrees.reduce((sum, cmd) => sum + cmd.montant_total, 0)
+      message: `✅ ${commandesCrees.length} commande${commandesCrees.length > 1 ? 's' : ''} créée${commandesCrees.length > 1 ? 's' : ''} avec succès`,
+      
+      // Résumé global
+      resume: {
+        nombre_commandes: commandesCrees.length,
+        nombre_articles: panier.items.reduce((sum, item) => sum + item.quantite, 0),
+        nombre_produits_uniques: panier.items.length,
+        sous_total: Math.round(sousTotalGlobal * 100) / 100,
+        total_economies: Math.round(economiesGlobales * 100) / 100,
+        total_global: totalGlobal,
+        date_validation: new Date().toISOString()
+      },
+
+      // Détail des commandes par boutique
+      commandes: commandesCrees.map((cmd, index) => {
+        const groupData = Array.from(commandesParBoutique.values())[index];
+        return {
+          id: cmd._id,
+          boutique: groupData.boutique,
+          montant_total: cmd.montant_total,
+          statut: cmd.statut,
+          date_creation: cmd.createdAt,
+          
+          // Détails de la commande
+          details: {
+            sous_total: groupData.sous_total_original,
+            economies: groupData.total_economies,
+            nombre_articles: groupData.items.reduce((sum, item) => sum + item.quantite, 0),
+            produits: groupData.items.map(item => ({
+              id: item.produit._id,
+              nom: item.produit.nom,
+              image: item.produit.image,
+              quantite: item.quantite,
+              prix_unitaire: item.prix_unitaire,
+              prix_original: item.prix_original,
+              reduction: item.reduction,
+              total: item.total,
+              economies: item.economies,
+              en_promotion: item.en_promotion,
+              unite: item.produit.unite
+            }))
+          }
+        };
+      }),
+
+      // Liste plate de tous les produits (pratique pour affichage)
+      produits: detailsProduits,
+
+      // Notes optionnelles
+      notes: notes || null,
+
+      // Pour debug
+      _debug: {
+        nombre_boutiques: commandesParBoutique.size,
+        timestamp: new Date().toLocaleString('fr-FR')
+      }
     });
 
   } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
-    
-    console.error('Erreur validerPanier:', error);
-    res.status(500).json({ message: 'Erreur lors de la validation du panier' });
+    console.error('❌ Erreur validerPanier:', error);
+    res.status(500).json({ 
+      message: 'Erreur lors de la validation du panier',
+      error: error.message 
+    });
   }
 };
 

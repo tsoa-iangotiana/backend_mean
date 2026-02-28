@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const {
-  payerCommande,
   listerCommandes,
   getCommandeDetails,
+  payerCommande,
   annulerCommande
 } = require('../../controllers/acheteur/commande.controller');
 
@@ -326,76 +326,12 @@ router.use(authMiddleware(['acheteur']));
 
 /**
  * @swagger
- * /commandes:
+ * /acheteur/commande/:
  *   get:
  *     summary: Lister les commandes de l'utilisateur avec filtres
  *     tags: [Commandes Acheteur]
  *     security:
  *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: statut
- *         schema:
- *           type: string
- *         description: "Filtrer par statut (séparer plusieurs statuts par des virgules: EN_ATTENTE,PAYEE)"
- *         example: "EN_ATTENTE,PAYEE"
- *       - in: query
- *         name: boutique
- *         schema:
- *           type: string
- *         description: Filtrer par ID de boutique
- *         example: "65f1a2b3c4d5e6f7a8b9c0d2"
- *       - in: query
- *         name: date_debut
- *         schema:
- *           type: string
- *           format: date
- *         description: Date de début (YYYY-MM-DD)
- *         example: "2024-01-01"
- *       - in: query
- *         name: date_fin
- *         schema:
- *           type: string
- *           format: date
- *         description: Date de fin (YYYY-MM-DD)
- *         example: "2024-12-31"
- *       - in: query
- *         name: prix_min
- *         schema:
- *           type: number
- *         description: Prix minimum
- *         example: 10
- *       - in: query
- *         name: prix_max
- *         schema:
- *           type: number
- *         description: Prix maximum
- *         example: 100
- *       - in: query
- *         name: tri
- *         schema:
- *           type: string
- *           enum: [date_desc, date_asc, montant_desc, montant_asc, statut]
- *           default: date_desc
- *         description: "Tri des résultats: date_desc (plus récent), date_asc (plus ancien), montant_desc (montant décroissant), montant_asc (montant croissant), statut (par statut)"
- *         example: "date_desc"
- *       - in: query
- *         name: page
- *         schema:
- *           type: integer
- *           minimum: 1
- *           default: 1
- *         description: Numéro de page
- *         example: 1
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *           minimum: 1
- *           maximum: 100
- *           default: 10
- *         description: Nombre d'éléments par page
- *         example: 10
  *     responses:
  *       200:
  *         description: Liste des commandes récupérée avec succès
@@ -467,7 +403,7 @@ router.get('/', listerCommandes);
 
 /**
  * @swagger
- * /commandes/{commandeId}:
+ * /acheteur/commande/{commandeId}:
  *   get:
  *     summary: Obtenir les détails d'une commande spécifique
  *     tags: [Commandes Acheteur]
@@ -533,7 +469,7 @@ router.get('/:commandeId', getCommandeDetails);
 
 /**
  * @swagger
- * /commandes/{commandeId}/payer:
+ * /acheteur/commande/{commandeId}/payer:
  *   put:
  *     summary: Payer une commande (mettre à jour le statut et décrémenter le stock)
  *     tags: [Commandes Acheteur]
@@ -658,7 +594,7 @@ router.put('/:commandeId/payer', payerCommande);
 
 /**
  * @swagger
- * /commandes/{commandeId}/annuler:
+ * /acheteur/commande/{commandeId}/annuler:
  *   put:
  *     summary: Annuler une commande
  *     tags: [Commandes Acheteur]

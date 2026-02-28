@@ -5,13 +5,10 @@ const mongoose = require('mongoose');
 // @desc    Payer une commande (mettre à jour le statut et décrémenter le stock)
 // @route   PUT /commandes/:commandeId/payer
 const payerCommande = async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
   try {
     const { commandeId } = req.params;
     const utilisateurId = req.user._id;
-    const { mode_paiement } = req.body; // Optionnel: informations de paiement
+    const { livraison } = req.body;
 
     // Récupérer la commande
     const commande = await Commande.findOne({
@@ -39,27 +36,27 @@ const payerCommande = async (req, res) => {
       }
     }
 
-    // Mettre à jour les stocks
+    // Mettre à jour les stocks (un par un, sans transaction)
     for (const item of commande.items) {
       await Produit.findByIdAndUpdate(
         item.produit._id,
-        { $inc: { stock: -item.quantite } },
-        { session }
+        { $inc: { stock: -item.quantite } }
       );
+    }
+
+    // Mettre à jour les informations de livraison si fournies
+    if (livraison) {
+      commande.livraison = {
+        adresse: livraison.adresse,
+        distance: livraison.distance,
+        frais: livraison.frais
+      };
     }
 
     // Mettre à jour le statut de la commande
     commande.statut = 'PAYEE';
-    commande.paiement = {
-      mode: mode_paiement || 'CARTE',
-      date: new Date(),
-      montant: commande.montant_total
-    };
     
-    await commande.save({ session });
-
-    await session.commitTransaction();
-    session.endSession();
+    await commande.save();
 
     // Récupérer la commande mise à jour avec les détails
     const commandeComplete = await Commande.findById(commande._id)
@@ -73,25 +70,17 @@ const payerCommande = async (req, res) => {
         boutique: commandeComplete.boutique.nom,
         montant_total: commandeComplete.montant_total,
         statut: commandeComplete.statut,
-        date_paiement: commandeComplete.paiement.date,
+        livraison: commandeComplete.livraison, // null si pas de livraison
         items: commandeComplete.items.map(item => ({
           produit: item.produit.nom,
           quantite: item.quantite,
           prix_unitaire: item.prix_unitaire,
           total: item.prix_unitaire * item.quantite
         }))
-      },
-      reçu: {
-        numéro: `CMD-${commande._id.toString().slice(-8).toUpperCase()}`,
-        date: new Date().toLocaleDateString('fr-FR'),
-        montant: commande.montant_total.toFixed(2) + ' €'
       }
     });
 
   } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
-    
     console.error('Erreur payerCommande:', error);
     res.status(500).json({ 
       message: error.message || 'Erreur lors du paiement de la commande' 
@@ -99,13 +88,12 @@ const payerCommande = async (req, res) => {
   }
 };
 
-// @desc    Lister les commandes de l'utilisateur avec filtres
 // @route   GET /commandes
 const listerCommandes = async (req, res) => {
   try {
     const utilisateurId = req.user._id;
     const {
-      statut,
+      statut = 'EN_ATTENTE', // ✅ Par défaut, on filtre sur EN_ATTENTE
       boutique,
       date_debut,
       date_fin,
@@ -119,12 +107,19 @@ const listerCommandes = async (req, res) => {
     // Construction du filtre
     const filter = { utilisateur: utilisateurId };
 
+    // Gestion du statut - Par défaut EN_ATTENTE
     if (statut) {
       const statuts = statut.split(',');
       if (statuts.length > 0) {
         filter.statut = { $in: statuts };
       }
+    } else {
+      // Si aucun statut spécifié, on prend EN_ATTENTE par défaut
+      filter.statut = 'EN_ATTENTE';
     }
+
+    // 🔍 LOG POUR DEBUG
+    console.log('🔍 Filtre appliqué:', filter);
 
     if (boutique) {
       filter.boutique = boutique;
@@ -181,6 +176,9 @@ const listerCommandes = async (req, res) => {
       .limit(parseInt(limit))
       .lean();
 
+    // 📊 LOG DU NOMBRE DE COMMANDES TROUVÉES
+    console.log(`📊 ${commandes.length} commande(s) trouvée(s) avec le statut ${statut}`);
+
     // Enrichir les commandes avec des informations supplémentaires
     const commandesEnrichies = commandes.map(commande => ({
       _id: commande._id,
@@ -193,7 +191,8 @@ const listerCommandes = async (req, res) => {
       apercu_produits: commande.items.slice(0, 3).map(item => ({
         nom: item.produit.nom,
         image: item.produit.images?.[0] || null,
-        quantite: item.quantite
+        quantite: item.quantite,
+        prix_unitaire: item.prix_unitaire
       })),
       peut_annuler: commande.statut === 'EN_ATTENTE',
       peut_payer: commande.statut === 'EN_ATTENTE'
@@ -201,7 +200,7 @@ const listerCommandes = async (req, res) => {
 
     const total = await Commande.countDocuments(filter);
 
-    // Statistiques globales
+    // Statistiques globales (pour toutes les commandes, pas seulement le filtre)
     const stats = await Commande.aggregate([
       {
         $match: { utilisateur: new mongoose.Types.ObjectId(utilisateurId) }
@@ -236,7 +235,13 @@ const listerCommandes = async (req, res) => {
       repartition_statuts: {}
     };
 
+    // Ajouter un compteur spécifique pour EN_ATTENTE
+    const commandesEnAttente = statistiques.repartition_statuts.EN_ATTENTE;
+
     res.json({
+      message: commandesEnrichies.length === 0 
+        ? 'Aucune commande en attente trouvée' 
+        : `${commandesEnrichies.length} commande(s) en attente`,
       commandes: commandesEnrichies,
       pagination: {
         page: parseInt(page),
@@ -246,16 +251,21 @@ const listerCommandes = async (req, res) => {
       },
       statistiques,
       filtres_appliques: {
-        statut: statut || 'tous',
+        statut: statut || 'EN_ATTENTE',
         date_debut: date_debut || null,
         date_fin: date_fin || null,
         tri
-      }
+      },
+      // ✅ Info supplémentaire : combien de commandes en attente au total
+      total_en_attente: commandesEnAttente
     });
 
   } catch (error) {
-    console.error('Erreur listerCommandes:', error);
-    res.status(500).json({ message: 'Erreur lors de la récupération des commandes' });
+    console.error('❌ Erreur listerCommandes:', error);
+    res.status(500).json({ 
+      message: 'Erreur lors de la récupération des commandes',
+      error: error.message 
+    });
   }
 };
 
