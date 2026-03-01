@@ -169,25 +169,72 @@ const logout = (req, res) => {
 // @desc    Obtenir son propre profil
 // @route   GET /api/users/me
 // @access  Private
+// @desc    Obtenir son propre profil
+// @route   GET /api/auth/profile
+// @access  Private
 const getMonProfil = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id)
+    // Récupérer l'utilisateur à partir du token manuellement
+    let token;
+    
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+      token = req.headers.authorization.split(' ')[1];
+    }
+    
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: 'Non autorisé - Token manquant'
+      });
+    }
+    
+    // Décoder le token pour obtenir l'ID utilisateur
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.userId || decoded.id;
+    
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Token invalide'
+      });
+    }
+    
+    const user = await User.findById(userId)
       .select('-password')
-      .populate('boutique', 'nom active');
-      
+    if (!user) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'Utilisateur non trouvé' 
+      });
+    }
+    
     res.json({ 
       success: true,
       user 
     });
   } catch (error) {
     console.error('❌ Erreur getMonProfil:', error);
+    
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({ 
+        success: false,
+        message: 'Token invalide' 
+      });
+    }
+    
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({ 
+        success: false,
+        message: 'Token expiré' 
+      });
+    }
+    
     res.status(500).json({ 
       success: false,
       message: 'Erreur serveur' 
     });
   }
 };
-
 // @desc    Obtenir tous les utilisateurs
 // @route   GET /api/users
 // @access  Private (Admin seulement)
@@ -270,21 +317,52 @@ const getUserById = async (req, res) => {
 // @desc    Modifier un utilisateur
 // @route   PUT /api/users/:id
 // @access  Private (Admin ou proprio)
+// @desc    Modifier un utilisateur
+// @route   PUT /api/users/:id
+// @access  Private (Admin ou proprio)
 const updateUser = async (req, res) => {
   try {
     const { id } = req.params;
     const updates = req.body;
     
-    // Vérifier les permissions (admin ou proprio)
-    if (req.user.role !== 'admin' && req.user._id.toString() !== id) {
-      return res.status(403).json({ 
+    // Récupérer l'utilisateur à partir du token manuellement
+    let token;
+    let currentUser;
+    
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+      token = req.headers.authorization.split(' ')[1];
+    }
+    
+    if (!token) {
+      return res.status(401).json({
         success: false,
-        message: 'Accès refusé' 
+        message: 'Non autorisé - Token manquant'
       });
     }
     
+    // Décoder le token pour obtenir l'utilisateur courant
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const currentUserId = decoded.userId || decoded.id;
+    
+    if (!currentUserId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Token invalide'
+      });
+    }
+    
+    // Récupérer l'utilisateur courant complet
+    currentUser = await User.findById(currentUserId);
+    
+    if (!currentUser) {
+      return res.status(401).json({
+        success: false,
+        message: 'Utilisateur non trouvé'
+      });
+    }
+  
     // Empêcher la modification de certains champs selon le rôle
-    if (req.user.role !== 'admin') {
+    if (currentUser.role !== 'admin') {
       // Un non-admin ne peut pas modifier son rôle
       if (updates.role) {
         return res.status(403).json({ 
@@ -342,9 +420,10 @@ const updateUser = async (req, res) => {
       }
     }
     
+    // ✅ CORRECTION ICI : Ajouter les updates dans findByIdAndUpdate
     const user = await User.findByIdAndUpdate(
       id, 
-      updates, 
+      updates, // <-- IL MANQUAIT CE PARAMÈTRE !
       { new: true, runValidators: true }
     ).select('-password');
     
@@ -362,13 +441,27 @@ const updateUser = async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Erreur updateUser:', error);
+    
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({ 
+        success: false,
+        message: 'Token invalide' 
+      });
+    }
+    
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({ 
+        success: false,
+        message: 'Token expiré' 
+      });
+    }
+    
     res.status(500).json({ 
       success: false,
       message: 'Erreur serveur' 
     });
   }
 };
-
 // @desc    Supprimer un utilisateur
 // @route   DELETE /api/users/:id
 // @access  Private (Admin seulement)
@@ -449,11 +542,23 @@ const toggleUserActive = async (req, res) => {
 
 // @desc    Changer le mot de passe
 // @route   POST /api/users/change-password
-// @access  Private
 const changePassword = async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
-    const userId = req.user._id;
+
+    // Extraire l'userId depuis le token (même pattern que getMonProfil)
+    let token;
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+      token = req.headers.authorization.split(' ')[1];
+    }
+    if (!token) {
+      return res.status(401).json({ success: false, message: 'Non autorisé - Token manquant' });
+    }
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.userId || decoded.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Token invalide' });
+    }
     
     // Validation
     if (!currentPassword || !newPassword) {
