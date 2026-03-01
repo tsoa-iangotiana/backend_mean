@@ -1,6 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const categorieController = require('../../controllers/admin/categorie.controller');
+const authMiddleware  = require('../../middlewares/auth.middleware');
+
+router.use(authMiddleware(['admin','boutique'])); // Protéger toutes les routes de ce router pour les administrateurs
 
 /**
  * @swagger
