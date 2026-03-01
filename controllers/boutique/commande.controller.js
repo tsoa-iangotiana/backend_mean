@@ -698,8 +698,12 @@ const marquerCommandeRecuperee = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Commande introuvable pour cette boutique.' });
     if (commande.livraison)
       return res.status(400).json({ success: false, message: 'Cette commande est prévue pour une livraison, pas une récupération en boutique.' });
-    if (commande.statut !== 'EN_ATTENTE')
-      return res.status(400).json({ success: false, message: `Impossible de marquer comme récupérée une commande au statut "${commande.statut}".` });
+    if (commande.statut !== 'PAYEE') {
+      return res.status(400).json({
+        success: false,
+        message: `Seules les commandes PAYEES peuvent être marquées comme récupérées.`
+      });
+    }
 
     commande.statut = 'RECUPEREE';
     await commande.save();
