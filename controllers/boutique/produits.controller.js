@@ -1,3 +1,4 @@
+const cloudinary = require('../../config/cloudinary');
 const Produit = require('../../models/produit.model');
 const Boutique = require('../../models/boutique.model');
 const mongoose = require('mongoose');
@@ -188,31 +189,86 @@ const getProduit = async (req, res) => {
   }
 };
 
-// @desc    Mettre à jour un produit
-// @route   PUT /api/produit/:id
 const updateProduit = async (req, res) => {
   try {
-    const { nom, description, prix, unite, stock, images, categorie, actif, boutiqueId } = req.body;
-    
+    const { nom, description, prix, unite, stock, categorie, actif, boutiqueId, existingImages } = req.body;
+
     if (!boutiqueId) {
       return res.status(400).json({ message: 'ID de la boutique requis' });
     }
 
-    const produit = await Produit.findOneAndUpdate(
-      { 
-        _id: req.params.id, 
-        boutique: boutiqueId
-      },
-      { nom, description, prix, unite, stock, images, categorie, actif },
-      { new: true, runValidators: true }
-    );
+    const produit = await Produit.findOne({
+      _id: req.params.id,
+      boutique: boutiqueId
+    });
 
     if (!produit) {
       return res.status(404).json({ message: 'Produit non trouvé' });
     }
 
+    // ✅ Images existantes à conserver (envoyées depuis le frontend)
+    let finalImages = [];
+    if (existingImages) {
+      finalImages = Array.isArray(existingImages) ? existingImages : [existingImages];
+    }
+
+    // ✅ Supprimer de Cloudinary les images qui ne sont plus conservées
+    if (produit.images && produit.images.length > 0) {
+      for (let imageUrl of produit.images) {
+        if (!finalImages.includes(imageUrl)) {
+          try {
+            const publicId = imageUrl.split('/').pop().split('.')[0];
+            await cloudinary.uploader.destroy(`produits/${publicId}`);
+            console.log(`🗑️ Image supprimée de Cloudinary : ${publicId}`);
+          } catch (cloudinaryError) {
+            console.warn(`⚠️ Impossible de supprimer l'image Cloudinary : ${cloudinaryError.message}`);
+          }
+        }
+      }
+    }
+
+    // ✅ Upload des nouvelles images
+    if (req.files && req.files.length > 0) {
+      const uploadPromises = req.files.map(file =>
+        new Promise((resolve, reject) => {
+          cloudinary.uploader.upload_stream(
+            {
+              folder: 'produits',
+              transformation: [
+                { width: 800, height: 800, crop: 'limit' },
+                { quality: 'auto' }
+              ]
+            },
+            (error, result) => {
+              if (error) reject(error);
+              else resolve(result.secure_url);
+            }
+          ).end(file.buffer);
+        })
+      );
+
+      const newImages = await Promise.all(uploadPromises);
+      finalImages = [...finalImages, ...newImages]; // ✅ Merge conservées + nouvelles
+      console.log(`📸 ${newImages.length} nouvelle(s) image(s) uploadée(s)`);
+    }
+
+    // ✅ Mise à jour des champs
+    produit.nom = nom;
+    produit.description = description;
+    produit.prix = prix;
+    produit.unite = unite;
+    produit.stock = stock;
+    produit.categorie = categorie;
+    produit.actif = actif;
+    produit.images = finalImages;
+
+    await produit.save();
+
+    console.log(`✅ Produit ${produit._id} mis à jour avec ${finalImages.length} image(s)`);
     res.json(produit);
+
   } catch (error) {
+    console.error('❌ Erreur updateProduit:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -319,6 +375,53 @@ const updateStock = async (req, res) => {
   }
 };
 
+const uploadProduitImages = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const produit = await Produit.findById(id);
+    if (!produit) {
+      return res.status(404).json({ message: 'Produit non trouvé' });
+    }
+
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ message: 'Aucune image fournie' });
+    }
+
+    const uploadPromises = req.files.map(file =>
+      new Promise((resolve, reject) => {
+        cloudinary.uploader.upload_stream(
+          {
+            folder: 'produits',
+            transformation: [
+              { width: 800, height: 800, crop: 'limit' },
+              { quality: 'auto' }
+            ]
+          },
+          (error, result) => {
+            if (error) reject(error);
+            else resolve(result.secure_url);
+          }
+        ).end(file.buffer);
+      })
+    );
+
+    const uploadedImages = await Promise.all(uploadPromises);
+
+    produit.images = [...produit.images, ...uploadedImages];
+    await produit.save();
+
+    res.status(200).json({
+      message: 'Images uploadées avec succès',
+      images: produit.images
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Erreur upload images' });
+  }
+};
+
 module.exports = {
   createProduit,
   getProduits,
@@ -326,5 +429,6 @@ module.exports = {
   updateProduit,
   deleteProduit,
   getSituationStock,
-  updateStock
+  updateStock,
+  uploadProduitImages
 };

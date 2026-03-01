@@ -1,5 +1,11 @@
 const express = require('express');
 const router = express.Router();
+
+const multer = require('multer');
+
+const storage = multer.memoryStorage();
+const upload = multer({ storage });
+
 const produitController = require('../../controllers/boutique/produits.controller');
 const  authMiddleware  = require('../../middlewares/auth.middleware'); // Si vous avez un middleware d'auth
 const Produit = require('../../models/produit.model');
@@ -228,7 +234,9 @@ router.get('/:id', authMiddleware(['acheteur','boutique']), produitController.ge
  *       500:
  *         description: Erreur serveur
  */
-router.put('/:id', authMiddleware(['acheteur','boutique']), produitController.updateProduit);
+router.put('/:id', authMiddleware(['boutique']), upload.array('images', 5),
+  produitController.updateProduit
+);
 
 /**
  * @swagger
@@ -329,5 +337,37 @@ router.get('/:id/stock', authMiddleware(['acheteur','boutique']), produitControl
  *         description: Erreur serveur
  */
 router.put('/:id/stock', authMiddleware(['acheteur','boutique']), produitController.updateStock);
+
+/**
+ * @swagger
+ * /produit/{id}/images:
+ *   post:
+ *     summary: Upload des images d'un produit
+ *     tags: [Produits]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               images:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *     responses:
+ *       200:
+ *         description: Images uploadées avec succès
+ */
+router.post('/:id/images', authMiddleware(['boutique']), upload.array('images', 5),
+produitController.uploadProduitImages
+);
 
 module.exports = router;
