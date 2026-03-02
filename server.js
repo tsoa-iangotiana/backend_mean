@@ -26,6 +26,7 @@ const corsOptions = {
 app.use(cors(corsOptions));
 
 
+
 app.use(express.json()); 
 // server.js - Configuration Swagger simple
 const swaggerOptions = {
@@ -88,6 +89,7 @@ app.use('/produit', require('./routes/boutique/produits.routes'));
 app.use('/promotion',require('./routes/boutique/promotions.routes'));
 app.use('/loyer', require('./routes/boutique/paiement.routes'));
 app.use('/ticket', require('./routes/boutique/tickets.routes'));
+app.use('/boutique/commande', require('./routes/boutique/commande.route'));
 app.use('/admin/dashboard',require('./routes/admin/dashboard.route'));
 //routes pour acheteur
 app.use('/acheteur/panier',require('./routes/acheteur/panier.route'));

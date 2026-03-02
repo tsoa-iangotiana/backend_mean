@@ -61,7 +61,7 @@ router.post('/logout', authMiddleware, logout);
 // Routes admin uniquement
 router.get('/all-users', authMiddleware(['admin']), getAllUsers);
 router.get('/user/:id', authMiddleware(['admin']), getUserById);
-router.put('/user/:id', authMiddleware(['admin']), updateUser);
+router.put('/user/:id', updateUser);
 router.delete('/user/:id', authMiddleware(['admin']), deleteUser);
 router.patch('/user/:id/toggle-active', authMiddleware(['admin']), toggleUserActive);
 

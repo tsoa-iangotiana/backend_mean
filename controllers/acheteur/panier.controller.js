@@ -326,7 +326,7 @@ const validerPanier = async (req, res) => {
               produit.description.substring(0, 100) + '...' : 
               produit.description) : null,
           prix: produit.prix,
-          image: produit.images && produit.images.length > 0 ? produit.images[0] : null,
+          images: produit.images && produit.images.length > 0 ? produit.images[0] : null,
           unite: produit.unite,
           categorie: produit.categorie,
           note_moyenne: produit.note_moyenne
@@ -422,7 +422,7 @@ const validerPanier = async (req, res) => {
             produits: groupData.items.map(item => ({
               id: item.produit._id,
               nom: item.produit.nom,
-              image: item.produit.image,
+              images: item.produit.image,
               quantite: item.quantite,
               prix_unitaire: item.prix_unitaire,
               prix_original: item.prix_original,
@@ -579,7 +579,7 @@ async function getPanierComplet(panierId) {
         _id: produit._id,
         nom: produit.nom,
         prix: produit.prix,
-        image: produit.images?.[0] || null,
+        images: produit.images?.[0] || null,
         boutique: produit.boutique
       },
       quantite: item.quantite,
